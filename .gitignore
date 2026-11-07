@@ -1,0 +1,5 @@
+*.JenkinsFile
+*.README.md
+.deployment.yml
+.service.yml
+.Dockerfile
