@@ -52,24 +52,39 @@ echo $DOCKER_API_VERSION
         }
       }
     }
-    stage('Update Deployment File') {
-        environment {
-            GIT_REPO_NAME = "Jenkins_cicd"
-            GIT_USER_NAME = "Saphona"
-        }
-        steps {
-            withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-                sh '''
-                    git config user.email "fouzanmasood@gmail.com"
-                    git config user.name "Saphona"
-                    BUILD_NUMBER=${BUILD_NUMBER}
-                    sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" spring-boot-app-manifests/deployment.yml
-                    git add /spring-boot-app-manifests/deployment.yml
-                    git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-                    git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-                '''
-            }
+    
+stage('Update Deployment File') {
+    environment {
+        GIT_REPO_NAME = "Jenkins_cicd"
+        GIT_USER_NAME = "Saphona"
+    }
+
+    steps {
+        // Checkout the GitHub repository into Jenkins workspace
+        checkout scm
+
+        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+            sh '''
+                echo "Current directory:"
+                pwd
+
+                echo "Checking Git repository:"
+                git rev-parse --show-toplevel
+
+                git config user.email "fouzanmasood@gmail.com"
+                git config user.name "Saphona"
+
+                sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" spring-boot-app-manifests/deployment.yml
+
+                git add spring-boot-app-manifests/deployment.yml
+
+                git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+
+                git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+            '''
         }
     }
+}
+
   }
 }
