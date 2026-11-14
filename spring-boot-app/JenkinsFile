@@ -70,7 +70,13 @@ stage('Update Deployment File') {
 
                 echo "Checking Git repository:"
                 git rev-parse --show-toplevel
+// Your Git repository is checked out by Jenkins, but your pipeline commands run as root inside the Docker container.
 
+// Git sees that the repository ownership and the current execution user don't match. It considers the repository potentially unsafe.
+// This tells Git: repository is trusted, even though its ownership differs from the current user.
+
+                git config --global --add safe.directory /var/lib/jenkins/workspace/Ulti-jenkins
+                
                 git config user.email "fouzanmasood@gmail.com"
                 git config user.name "Saphona"
 
