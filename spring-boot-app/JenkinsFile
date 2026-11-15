@@ -80,7 +80,10 @@ stage('Update Deployment File') {
                 git config user.email "fouzanmasood@gmail.com"
                 git config user.name "Saphona"
 
-                sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" spring-boot-app-manifests/deployment.yml
+                # sed -i "s/replaceImageTag/${BUILD_NUMBER}/g" spring-boot-app-manifests/deployment.yml
+                sed -i -E \
+                "s|(image: fouzan397/ulti-jenkins:)[^[:space:]]+|\1${BUILD_NUMBER}|" \
+                spring-boot-app-manifests/deployment.yml
 
                 git add spring-boot-app-manifests/deployment.yml
 
