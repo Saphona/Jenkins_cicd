@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: spring-boot-app
-        image: fouzan397/ulti-jenkins:26
+        image: fouzan397/ulti-jenkins:32
         ports:
         - containerPort: 8080
