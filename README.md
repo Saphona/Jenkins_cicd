@@ -248,3 +248,137 @@ Before installing any application on a Linux server:
 - **Secure CI/CD credentials:** Store SonarQube tokens in Jenkins Credentials.
 - **Always verify:** Check Java compatibility, kernel requirements, service status and application logs before troubleshooting further.
 
+  # Problems I Ran Into (and How I Fixed Them) pt3
+
+## 1. Kind Cluster Creation Failed Due to Port Conflict
+
+- **Problem:** Kind could not create the Kubernetes cluster because port 8080 was already occupied.
+- **Error:**
+  ```text
+  ports are not available:
+  exposing port TCP 0.0.0.0:8080
+  bind: Only one usage of each socket address is normally permitted.
+  ```
+- **Cause:** Another application was already listening on Windows port 8080.
+- **Investigation:**
+  ```powershell
+  netstat -ano | findstr :8080
+  tasklist /FI "PID eq 4728"
+  ```
+  Identified `httpd.exe` (Apache HTTP Server), PID 4728.
+- **Fix:** Proposed changing Kind's host port mappings to 8090 and 8445 instead of 8080 and 8443.
+- **Lesson:** Always check host port availability before configuring Docker port mappings. Different applications cannot normally share the same host IP and port.
+
+## 2. Kubernetes API Server Became Unreachable
+
+- **Problem:** OLM installation failed because Kubernetes resources could not be validated.
+- **Error:**
+  ```text
+  Get "https://127.0.0.1:64969/openapi/v2":
+  dial tcp 127.0.0.1:64969:
+  connectex: No connection could be made
+  ```
+- **Cause:** The Kind cluster was unavailable after cluster deletion and unsuccessful recreation attempts.
+- **Investigation:**
+  ```bash
+  kind get clusters
+  kubectl config current-context
+  kubectl cluster-info
+  kubectl get nodes
+  ```
+- **Fix:** Recreate the Kind cluster successfully and verify API server connectivity before installing Kubernetes components.
+- **Lesson:** Kubernetes installations depend on a healthy API server. Verify cluster health before deploying operators or applications.
+
+## 3. Argo CD Operator CSV Was Not Created
+
+- **Problem:** The Argo CD Operator subscription was created, but no CSV appeared in the operators namespace.
+- **Observation:**
+  ```text
+  subscription.operators.coreos.com/my-argocd-operator created
+
+  OLM is already installed in olm namespace.
+
+  kubectl get csv -n operators
+  No resources found in operators namespace.
+  ```
+- **Cause:** Creating a Subscription does not mean the Operator installation is complete. OLM still needs to resolve the subscription, create an InstallPlan and install the Operator.
+- **Investigation:** OLM pods were mostly running, but the OperatorHub catalog pod showed `0/1 Running`.
+- **Next troubleshooting commands:**
+  ```bash
+  kubectl get subscription -n operators
+  kubectl describe subscription my-argocd-operator -n operators
+  kubectl get installplan -n operators
+  kubectl get catalogsources -n olm
+  ```
+- **Lesson:** Understand the OLM installation sequence: CatalogSource → Subscription → InstallPlan → CSV → Operator. Check each stage instead of assuming a successful Subscription creation means installation is complete.
+
+## 4. Understanding Docker Socket Mounting in Jenkins
+
+- **Problem:** Needed to understand how a Jenkins Docker agent can execute Docker commands using the host's Docker daemon.
+- **Configuration:**
+  ```groovy
+  agent {
+    docker {
+      image 'abhishekf5/maven-abhishek-docker-agent:v1'
+      args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+    }
+  }
+  ```
+- **Cause:** A Docker agent container does not automatically have access to the host Docker daemon.
+- **Explanation:** The socket mount exposes the host's Docker communication socket inside the Jenkins agent.
+  ```bash
+  -v /var/run/docker.sock:/var/run/docker.sock
+  ```
+  Docker CLI commands inside the agent can now communicate with the host Docker daemon.
+- **Lesson:** Docker CLI is the client, while Docker daemon performs the actual operations. Socket mounting is powerful and introduces security risks because it grants extensive control over the host.
+
+## 5. VmmemWSL Consuming Windows Memory
+
+- **Problem:** VmmemWSL was consuming significant RAM while running Docker Desktop and Kind Kubernetes.
+- **Observation:** VmmemWSL appeared in Windows Task Manager.
+- **Cause:** WSL2 manages the Linux environment used by Docker Desktop. Running Kubernetes nodes, containers and other services increases its memory usage.
+- **Suggested Fix:** Configure WSL2 resource limits:
+  ```powershell
+  notepad $env:USERPROFILE\.wslconfig
+  ```
+  Example:
+  ```ini
+  [wsl2]
+  memory=4GB
+  processors=2
+  swap=2GB
+  ```
+  Shut down WSL2 when finished:
+  ```powershell
+  wsl --shutdown
+  ```
+- **Lesson:** Manage WSL2 resources when running local Kubernetes environments. Stop Docker and WSL2 when the development environment is no longer needed.
+
+---
+
+### What I Should Have Done From the Beginning
+
+1. Check Docker Desktop and WSL2 resource availability.
+2. Check whether required host ports are available.
+3. Prepare the Kind configuration with control-plane and worker nodes and appropriate port mappings.
+4. Create the cluster and verify:
+   ```bash
+   kind get clusters
+   kubectl get nodes -o wide
+   kubectl cluster-info
+   ```
+5. Confirm the correct Kubernetes context.
+6. Install OLM and verify all its components are Ready.
+7. Create the Argo CD Operator Subscription.
+8. Verify CatalogSource, InstallPlan and CSV status before proceeding with Argo CD deployment.
+
+### Key Takeaways
+
+- **Kind:** Runs Kubernetes nodes as Docker containers.
+- **Port mapping:** Connects Windows host ports to ports inside Kind nodes.
+- **Kubernetes API:** A healthy API server is required for Kubernetes operations.
+- **OLM:** Subscription creation and Operator installation are separate stages.
+- **Docker socket:** Allows Jenkins agents to communicate with the host Docker daemon.
+- **WSL2:** Docker Desktop and local Kubernetes workloads consume WSL2 memory.
+- **Troubleshooting:** Identify the actual root cause before changing configurations or reinstalling components.
+
