@@ -132,3 +132,119 @@ Before installing any application on a Linux server:
 - Diagnose the actual problem before changing configurations.
 
 **Biggest lesson:** A successful installation starts with checking compatibility and prerequisites, not immediately running installation commands.
+
+
+# Problems I Ran Into (and How They Got Fixed) pt2
+
+## 1. Permission Error While Downloading SonarQube
+
+- **Problem:** I couldn't download the SonarQube ZIP file after switching to the `sonarqube` user.
+- **Error:**
+  ```text
+  sudo: I'm sorry sonarqube. I'm afraid I can't do that
+  ```
+- **Cause:** I was logged in as the `sonarqube` user, which did not have sudo privileges.
+- **Fix:** Switched back to root and downloaded the file from `/opt`.
+
+  ```bash
+  exit
+  cd /opt
+
+  wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-26.11.0.134175.zip
+  ```
+
+- **Lesson:** Use root or an account with sudo privileges for installation tasks. Use the dedicated application user to run SonarQube.
+
+## 2. Understanding Why SonarQube Was Installed in `/opt`
+
+- **Problem:** I wasn't sure why the installation directory was `/opt`.
+- **Observation:** The installation instructions used `/opt/sonarqube`.
+- **Cause:** I wasn't familiar with the Linux filesystem structure.
+- **Fix:** Learned that `/opt` is commonly used for manually installed third-party applications.
+
+  ```bash
+  cd /opt
+  ```
+
+- **Lesson:** Understand the purpose of Linux directories before installing applications. `/opt` is a standard location, not a compulsory requirement.
+
+## 3. Understanding the `chown -R` Command
+
+- **Problem:** I didn't understand why ownership needed to be changed recursively.
+- **Command:**
+  ```bash
+  chown -R sonarqube:sonarqube /opt/sonarqube
+  ```
+- **Cause:** SonarQube was downloaded and extracted as root, but the application needed to run under its dedicated `sonarqube` user.
+- **Fix:** Changed ownership of the installation directory and its contents to the SonarQube user and group.
+
+- **Lesson:**
+  - `chown` changes ownership.
+  - `-R` means recursive.
+  - `sonarqube:sonarqube` represents the owner and group.
+
+## 4. Understanding the `chmod -R` Command
+
+- **Problem:** I didn't understand why `-R` was required in the permissions command.
+- **Command:**
+  ```bash
+  chmod -R 775 /opt/sonarqube
+  ```
+- **Cause:** Without `-R`, permissions would only change on the specified directory, not its contents.
+- **Fix:** Learned that recursive permission changes apply to subdirectories and files as well.
+
+- **Lesson:**
+  - `chmod` changes permissions.
+  - `-R` means recursive.
+  - `775` means owner and group have read, write and execute permissions; others have read and execute permissions.
+
+  Note: Applying `775` recursively is broad. A more restrictive, file-specific permission setup is preferable for a real server.
+
+## 5. SonarQube ZIP Extraction
+
+- **Problem:** I thought the extraction process was stuck.
+- **Observation:** The terminal displayed multiple `creating:` and `inflating:` messages.
+- **Cause:** The ZIP extraction was processing many files and directories.
+- **Fix:** Waited until the terminal returned to the root prompt:
+
+  ```text
+  root@ip-172-31-36-241:/opt#
+  ```
+
+- **Lesson:** ZIP extraction can produce a lot of output. When the shell prompt returns without an error, the command has finished.
+
+## 6. Choosing the SonarQube Token for Jenkins
+
+- **Problem:** I wasn't sure which token type to select when integrating SonarQube with Jenkins.
+- **Observation:** The available options were:
+  - Global Analysis Token
+  - User Token
+- **Cause:** I wasn't familiar with the different token types.
+- **Fix:** Selected **Global Analysis Token** for the Jenkins CI/CD integration.
+- **Lesson:** Use an appropriate analysis token for CI/CD tools and store it securely in Jenkins Credentials rather than hardcoding it in a Jenkinsfile.
+
+---
+
+### What I Should Have Done From the Beginning
+
+1. Launch an EC2 instance with sufficient RAM, CPU and disk space.
+2. Configure the required security group rules, including SSH and SonarQube port 9000 restricted to my IP.
+3. Update Ubuntu and install the required Java version and utilities.
+4. Create a dedicated `sonarqube` user.
+5. Switch to root before downloading and extracting the SonarQube binary.
+6. Install SonarQube under `/opt/sonarqube`.
+7. Change ownership to the dedicated SonarQube user.
+8. Configure the required Linux kernel settings.
+9. Switch to the `sonarqube` user and start the application.
+10. Check the service status and logs before accessing it through the browser.
+
+### Key Takeaways
+
+- **Linux users and permissions matter:** Root performs administrative tasks, while dedicated users run applications.
+- **Understand Linux directories:** `/opt` is commonly used for third-party applications.
+- **Recursive commands:** `-R` applies changes to directories and their contents.
+- **Ownership vs permissions:** `chown` changes who owns files; `chmod` changes what users can do with them.
+- **Don't panic at terminal output:** Long extraction output does not necessarily indicate a problem.
+- **Secure CI/CD credentials:** Store SonarQube tokens in Jenkins Credentials.
+- **Always verify:** Check Java compatibility, kernel requirements, service status and application logs before troubleshooting further.
+
